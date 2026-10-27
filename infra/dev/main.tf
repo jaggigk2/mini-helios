@@ -65,9 +65,36 @@ resource "azurerm_container_registry" "acr" {
 
 # --- Shared runtime where all services will run; scales apps to zero when idle ---
 resource "azurerm_container_app_environment" "env" {
-  name                       = "cae-helios"
+  name                       = "cae-helios"                                # environment name
+  location                   = azurerm_resource_group.rg.location          # same region as the resource group
+  resource_group_name        = azurerm_resource_group.rg.name              # put it inside the resource group
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id     # send its logs to the workspace above
+
+  workload_profile {                          # declare the default Azure already created (fixes drift)
+    name                  = "Consumption"     # the profile's name
+    workload_profile_type = "Consumption"     # pay-per-use, scales to zero (our ADR-0001 choice)
+  }
+
+  tags                       = local.tags                                  # same tags as everything else
+}
+
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_key_vault" "kv" {
+  name                       = "kv-helios-${random_string.sfx.result}" 
   location                   = azurerm_resource_group.rg.location
   resource_group_name        = azurerm_resource_group.rg.name
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id   # send its logs to the workspace above
-  tags                       = local.tags
+  tenant_id                  = data.azurerm_client_config.current.tenant_id
+  sku_name                   = "standard"
+  rbac_authorization_enabled = true
+  soft_delete_retention_days = 7
+  purge_protection_enabled   = false
+  tags = local.tags   # same course/module/owner tags as every other resource
+ 
+}
+
+resource "azurerm_role_assignment" "me_secrets_officer" {
+  scope                = azurerm_key_vault.kv.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
 }
