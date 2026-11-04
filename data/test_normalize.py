@@ -35,7 +35,18 @@ def test_truck():                                   # truck dialect: epoch secon
     assert evt["id"] == "TR-7:tyre_pressure"        # one Cosmos doc per machine+metric
     assert needs_action(evt) is False               # 690 is not below 620 -> safe
 
+
+def test_dozer():                                   # dozer dialect: psi + local time with offset
+    raw = {"type": "dozer", "machine": "DZ-9",      # dozer calls its serial "machine"
+           "ts": "2026-11-04T22:00:00+05:30", "hyd_psi": 2900}
+    evt = normalize(raw)                            # translate to canonical shape
+    assert evt["serial"] == "DZ-9"                   # 1. which field becomes serial?
+    assert evt["ts_utc"] == "2026-11-04T16:30:00+00:00"                   # 2. 22:00 at +05:30 -> UTC (offset must be +00:00)
+    assert evt["metric"] == "hydraulic_pressure"    # canonical metric name
+    assert evt["value"] == 19994.8 and evt["unit"] == "kPa"   # 3+4. your unit, and 2900 psi converted to it
+    assert evt["id"] == "DZ-9:hydraulic_pressure"   # one Cosmos doc per machine+metric
+
 def test_unknown_type_raises():                     # quarantine path: unknown dialect
     import pytest                                   # needed for pytest.raises
     with pytest.raises(ValueError):                 # test passes only if ValueError is raised
-        normalize({"type": "dozer", "machine": "DZ-9"})  # no dozer adapter yet
+        normalize({"type": "crane", "machine": "CR-1"})  # no dozer adapter yet

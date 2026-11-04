@@ -35,7 +35,18 @@ def _generator(e):                                   # translates the generator 
         "unit": "%",                                 # canonical unit
     }
 
-ADAPTERS = {"excavator": _excavator, "truck": _truck, "generator": _generator}  # type -> adapter lookup
+def _dozer(e):                                   # translates the dozer dialect
+    return {
+        "serial": e["machine"],                           # dozer calls its serial "machine"
+        "ts_utc": datetime.fromisoformat(e["ts"])  # read time; it carries +05:30
+                  .astimezone(timezone.utc)          # convert that moment to UTC
+                  .isoformat(),                      # write it as standard text
+        "metric": "hydraulic_pressure",                        # canonical metric name
+        "value": round(e["hyd_psi"] * 6.89476, 1),  
+        "unit": "kPa",                                 # canonical unit
+    }
+
+ADAPTERS = {"excavator": _excavator, "truck": _truck, "generator": _generator, "dozer": _dozer}  # type -> adapter lookup
 
 def normalize(raw: dict) -> dict:                    # the one function the caller uses
     adapter = ADAPTERS.get(raw.get("type"))          # find the adapter for this machine type
