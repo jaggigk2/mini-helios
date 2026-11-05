@@ -14,6 +14,8 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 # take only the finished jar from stage 1
 COPY --from=build /app/target/*.jar app.jar
+# App Insights Java agent: auto-records requests, dependencies, exceptions (attached via JAVA_TOOL_OPTIONS at deploy)
+COPY applicationinsights-agent.jar applicationinsights-agent.jar
 # document that the app listens on 8080 (Container Apps' --target-port)
 EXPOSE 8080
 # start the service
