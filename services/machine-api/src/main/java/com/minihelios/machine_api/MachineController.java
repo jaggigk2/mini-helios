@@ -25,6 +25,10 @@ class MachineController {
 
     @GetMapping("/{serial}")                               // GET /v1/machines/ABC123
     ResponseEntity<Machine> get(@PathVariable String serial) {
+        // Drill-only fault switch: when FAULT_GET_500=true, every lookup fails with a 500 (off by default)
+        if ("true".equals(System.getenv("FAULT_GET_500"))) {
+            throw new IllegalStateException("Injected fault for incident drill");   // unhandled exception -> 500 Problem Details
+        }
         Machine m = store.get(serial);                     // look it up
         if (m == null) {                                   // unknown serial?
             // Problem Details (RFC 7807): the standard error shape every caller can parse
