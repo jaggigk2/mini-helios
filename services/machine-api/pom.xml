@@ -60,6 +60,11 @@
 			<!-- not managed by Spring Boot, so we pin the version we just checked -->
 			<version>3.2.0</version>
 		</dependency>
+				<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc-test</artifactId>  <!-- Boot 4: MockMvc test support moved here -->
+			<scope>test</scope>                                        <!-- only used when running tests, never shipped in the image -->
+		</dependency>
 	</dependencies>
 
 	<build>
