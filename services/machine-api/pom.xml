@@ -29,6 +29,17 @@
 	<properties>
 		<java.version>21</java.version>
 	</properties>
+	<dependencyManagement>                                  <!-- pins versions only; adds nothing by itself -->
+		<dependencies>
+			<dependency>
+				<groupId>io.cucumber</groupId>
+				<artifactId>cucumber-bom</artifactId>       <!-- one version for every Cucumber part -->
+				<version>7.34.3</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -64,6 +75,26 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>  <!-- Boot 4: MockMvc test support moved here -->
 			<scope>test</scope>                                        <!-- only used when running tests, never shipped in the image -->
+		</dependency>
+				<dependency>
+			<groupId>io.cucumber</groupId>
+			<artifactId>cucumber-java</artifactId>                    <!-- @Given/@When/@Then annotations -->
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.cucumber</groupId>
+			<artifactId>cucumber-spring</artifactId>                  <!-- lets steps use Spring beans like MockMvc -->
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.cucumber</groupId>
+			<artifactId>cucumber-junit-platform-engine</artifactId>   <!-- runs .feature files inside JUnit -->
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.platform</groupId>
+			<artifactId>junit-platform-suite</artifactId>             <!-- @Suite runner that points JUnit at the features; version from Boot -->
+			<scope>test</scope>
 		</dependency>
 	</dependencies>
 
