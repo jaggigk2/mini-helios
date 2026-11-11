@@ -19,8 +19,8 @@ jobs:
       run:
         working-directory: services/machine-api     # every 'run' step starts in the service folder
     steps:
-      - uses: actions/checkout@v4                   # get the code
-      - uses: actions/setup-java@v4                 # install Java 21 + cache Maven downloads
+      - uses: actions/checkout@v5                   # get the code
+      - uses: actions/setup-java@v5                 # install Java 21 + cache Maven downloads
         with: { distribution: temurin, java-version: "21", cache: maven }
 
       - name: Tests gate (JUnit + MockMvc + Cucumber)
