@@ -1,0 +1,65 @@
+name: machine-api                                   # name shown in GitHub's Actions tab
+on:
+  push:
+    branches: [main]                                # only merges/pushes to main deploy
+    paths:
+      - "services/machine-api/**"                   # only changes to this service trigger it
+      - ".github/workflows/machine-api.yml"         # ...or changes to this pipeline itself
+  workflow_dispatch: {}                             # adds a "Run workflow" button for manual runs
+permissions:
+  id-token: write                                   # allow GitHub to mint the OIDC token (token 1)
+  contents: read                                    # read the code, nothing more
+env:
+  RG: rg-helios-dev                                 # resource group
+  APP: machine-api                                  # container app name
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest                          # fresh GitHub cloud machine
+    defaults:
+      run:
+        working-directory: services/machine-api     # every 'run' step starts in the service folder
+    steps:
+      - uses: actions/checkout@v4                   # get the code
+      - uses: actions/setup-java@v4                 # install Java 21 + cache Maven downloads
+        with: { distribution: temurin, java-version: "21", cache: maven }
+
+      - name: Tests gate (JUnit + MockMvc + Cucumber)
+        run: chmod +x mvnw && ./mvnw -B verify      # any red test stops the whole run here
+
+      - uses: azure/login@v2                        # OIDC: GitHub token -> Azure access token (no password)
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fetch App Insights agent (git-ignored, needed by Dockerfile)
+        run: curl -sSfL -o applicationinsights-agent.jar https://github.com/microsoft/ApplicationInsights-Java/releases/download/3.7.10/applicationinsights-agent-3.7.10.jar
+
+      - name: Build image tagged with commit SHA
+        run: az acr build -r ${{ vars.ACR_NAME }} -t machine-api:${{ github.sha }} .   # one image per commit = traceable
+
+      - name: Deploy new revision at 0%
+        id: deploy                                  # lets later steps read this step's output
+        run: |
+          SUFFIX="g${GITHUB_SHA::7}"                # revision suffix = 'g' + first 7 chars of the commit
+          az containerapp update -n $APP -g $RG \
+            --image ${{ vars.ACR_NAME }}.azurecr.io/machine-api:${{ github.sha }} \
+            --revision-suffix $SUFFIX -o none       # new revision; traffic stays pinned to the old one
+          echo "rev=$APP--$SUFFIX" >> $GITHUB_OUTPUT   # remember the new revision's name
+
+      - name: Smoke test the NEW revision (PUT then GET SMOKE-001)
+        run: |
+          FQDN=$(az containerapp revision show -n $APP -g $RG --revision ${{ steps.deploy.outputs.rev }} --query properties.fqdn -o tsv)   # the new revision's own address (0% users)
+          curl -sS --fail --retry 10 --retry-delay 6 --retry-all-errors -X PUT "https://$FQDN/v1/machines/SMOKE-001" \
+            -H "Content-Type: application/json" -d '{"serial":"SMOKE-001","model":"smoke","site":"pipeline"}'   # write; retries while it starts
+          curl -sS --fail "https://$FQDN/v1/machines/SMOKE-001" | grep -q '"site":"pipeline"'                     # read back; must match
+
+      - name: Shift 100% traffic to the new revision
+        run: az containerapp ingress traffic set -n $APP -g $RG --revision-weight ${{ steps.deploy.outputs.rev }}=100 -o none
+
+      - name: Roll back if anything above failed
+        if: failure() && steps.deploy.outputs.rev != ''    # only when a new revision was created
+        run: az containerapp revision deactivate -n $APP -g $RG --revision ${{ steps.deploy.outputs.rev }}   # users never left the old revision
+
+      - name: Report lead time (commit -> production)
+        run: echo "Lead time $(( ($(date +%s) - $(git log -1 --format=%ct)) / 60 )) min" | tee -a $GITHUB_STEP_SUMMARY   # DORA number on the run page
